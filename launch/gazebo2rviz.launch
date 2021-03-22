@@ -2,11 +2,15 @@
   <arg name="marker_frequency" default="2" />
   <arg name="marker_collision" default="false" />
   <arg name="worldfile" default="" />
+  <arg name="ignore_submodels" default="" />
 
-  <include file="$(find gazebo2rviz)/launch/gazebo2tf.launch" />
+  <include file="$(find gazebo2rviz)/launch/gazebo2tf.launch">
+    <arg name="ignore_submodels" value="$(arg ignore_submodels)" />
+  </include>
   <include file="$(find gazebo2rviz)/launch/gazebo2marker.launch">
     <arg name="frequency" value="$(arg marker_frequency)" />
     <arg name="collision" value="$(arg marker_collision)" />
     <arg name="worldfile" value="$(arg worldfile)" />
+    <arg name="ignore_submodels" value="$(arg ignore_submodels)" />
   </include>
 </launch>
