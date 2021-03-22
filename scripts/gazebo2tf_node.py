@@ -41,28 +41,37 @@ def on_link_states_msg(link_states_msg):
     #print('%s:\n%s' % (link_name, poses[link_name]))
 
   for (link_idx, link_name) in enumerate(link_states_msg.name):
-    #print(link_idx, link_name)
     modelinstance_name = link_name.split('::')[0]
-    #print('modelinstance_name:', modelinstance_name)
     model_name = pysdf.name2modelname(modelinstance_name)
-    #print('model_name:', model_name)
+    if model_name in submodelsToBeIgnored:
+      continue
     if not model_name in model_cache:
-      sdf = pysdf.SDF(model=model_name)
+      rospy.loginfo("gazebo2tf_node: Loading sdf model: {}".format(model_name))
+      sdf = pysdf.SDF(model=model_name, ignore_submodels=submodelsToBeIgnored)
+      if sdf:
+        rospy.loginfo("gazebo2tf_node: Sucessfully loaded sdf model: {}".format(model_name))
+      else:
+        rospy.loginfo("gazebo2tf_node: Failed to load sdf model: {}".format(model_name))
       model_cache[model_name] = sdf.world.models[0] if len(sdf.world.models) >= 1 else None
       if model_cache[model_name]:
-        rospy.loginfo('Loaded model: %s' % model_cache[model_name].name)
+        rospy.loginfo('gazebo2tf_node: Loaded model: %s' % model_cache[model_name].name)
       else:
-        rospy.loginfo('Unable to load model: %s' % model_name)
+        rospy.loginfo('gazebo2tf_node: Unable to load model: %s' % model_name)
     model = model_cache[model_name]
     link_name_in_model = link_name.replace(modelinstance_name + '::', '')
     if model:
-      link = model.get_link(link_name_in_model)
-      if link.tree_parent_joint:
+      try:
+        link = model.get_link(link_name_in_model)
+      except Exception as e:
+        rospy.logwarn("gazebo2tf_node: Unable to find link {} in model {}: {}".format(link_name_in_model, model_name, repr(e)))
+        continue
+      try:
         parent_link = link.tree_parent_joint.tree_parent_link
         parent_link_name = parent_link.get_full_name()
         #print('parent:', parent_link_name)
         parentinstance_link_name = parent_link_name.replace(model_name, modelinstance_name, 1)
-      else: # direct child of world
+      except Exception as e:
+        # direct child of world
         parentinstance_link_name = 'gazebo_world'
     else: # Not an SDF model
         parentinstance_link_name = 'gazebo_world'
@@ -83,8 +92,8 @@ def main():
   rospy.init_node('gazebo2tf')
 
   global submodelsToBeIgnored
-  submodelsToBeIgnored = rospy.get_param('~ignore_submodels_of', '').split(';')
-  rospy.loginfo('Ignoring submodels of: ' + str(submodelsToBeIgnored))
+  submodelsToBeIgnored = rospy.get_param('~ignore_submodels', '').split(';')
+  rospy.loginfo('gazebo2tf_node: Ignoring submodels of: ' + str(submodelsToBeIgnored))
 
   global tfBroadcaster
   tfBroadcaster = tf.TransformBroadcaster()
