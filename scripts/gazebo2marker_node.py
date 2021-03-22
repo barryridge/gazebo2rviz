@@ -33,6 +33,21 @@ def publish_link_marker(link, full_linkname, **kwargs):
     for marker_msg in marker_msgs:
       markerPub.publish(marker_msg)
 
+def load_model(model_name):
+  if not model_name in model_cache:
+    model_cache[model_name] = None
+    if worldsdf:
+      for model in worldsdf.world.models:
+        if model.name == model_name:
+          model_cache[model_name] = model
+          break
+    else:
+      sdf = pysdf.SDF(model=model_name, ignore_submodels=submodelsToBeIgnored)
+      if len(sdf.world.models) >= 1:
+        model_cache[model_name] = sdf.world.models[0]
+  model = model_cache[model_name]
+
+  return model
 
 def on_model_states_msg(model_states_msg):
   global lastUpdateTime
@@ -41,29 +56,20 @@ def on_model_states_msg(model_states_msg):
     return
   lastUpdateTime = rospy.get_rostime()
 
+
   for (model_idx, modelinstance_name) in enumerate(model_states_msg.name):
-    #print(model_idx, modelinstance_name)
-    model_name = pysdf.name2modelname(modelinstance_name)
-    #print('model_name:', model_name)
-    if not model_name in model_cache:
-      model_cache[model_name] = None
-      if worldsdf:
-        for model in worldsdf.world.models:
-          if model.name == model_name:
-            model_cache[model_name] = model
-            break
-      else:
-        sdf = pysdf.SDF(model=model_name)
-        if len(sdf.world.models) >= 1:
-          model_cache[model_name] = sdf.world.models[0]
-      if model_cache[model_name]:
-        rospy.loginfo('Loaded model: %s' % model_cache[model_name].name)
-      else:
-        rospy.loginfo('Unable to load model: %s' % model_name)
-    model = model_cache[model_name]
-    if not model: # Not an SDF model
-      continue
-    #print('model:', model)
+    try:
+      model = load_model(modelinstance_name)
+      assert(model)
+    except Exception:
+      try:
+        model_name = pysdf.name2modelname(modelinstance_name)
+        model = load_model(model_name)
+        assert(model)
+      except Exception:
+        rospy.loginfo("gazebo2marker_node: Failed to load model: {}".format(modelinstance_name))
+        continue
+    rospy.loginfo("gazebo2marker_node: Successfully loaded model: {}".format(modelinstance_name))
     model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
 
 
@@ -77,11 +83,8 @@ def main():
   rospy.init_node('gazebo2marker')
 
   global submodelsToBeIgnored
-  submodelsToBeIgnored = rospy.get_param('~ignore_submodels_of', '').split(';')
-  rospy.loginfo('Ignoring submodels of: ' + str(submodelsToBeIgnored))
-  if submodelsToBeIgnored:
-    rospy.logerr('ignore_submodels_of is currently not supported and will thus have no effect')
-
+  submodelsToBeIgnored = rospy.get_param('~ignore_submodels', '').split(';')
+  rospy.loginfo('gazebo2marker_node: Ignoring submodels of: ' + str(submodelsToBeIgnored))
 
   global updatePeriod
   updatePeriod = 1. / args.freq
@@ -91,7 +94,13 @@ def main():
 
   if args.worldfile:
     global worldsdf
-    worldsdf = pysdf.SDF(file=args.worldfile)
+    global submodelsToBeIgnored
+    rospy.loginfo("gazebo2marker_node: Loading world model: {}".format(args.worldfile))
+    worldsdf = pysdf.SDF(file=args.worldfile, ignore_submodels=submodelsToBeIgnored)
+    if worldsdf:
+      rospy.loginfo("gazebo2marker_node: Sucessfully loaded world model: {}".format(args.worldfile))
+    else:
+      rospy.loginfo("gazebo2marker_node: Failed to load world model: {}".format(args.worldfile))
 
   global markerPub
   markerPub = rospy.Publisher('/visualization_marker', Marker, queue_size=10)

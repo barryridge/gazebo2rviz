@@ -2,6 +2,7 @@
   <arg name="frequency" default="2" />
   <arg name="collision" default="false" />
   <arg name="worldfile" default="" />
+  <arg name="ignore_submodels" default="" />
 
   <arg name="collision_arg" value="-c" if="$(arg collision)" />
   <arg name="collision_arg" value="" unless="$(arg collision)" />
@@ -9,6 +10,6 @@
 
 
   <node name="gazebo2marker" pkg="gazebo2rviz" type="gazebo2marker_node.py" args="-f $(arg frequency) $(arg collision_arg) $(arg worldfile_arg)" output="screen">
-    <param name="ignore_submodels_of" value="" type="str" />
+    <param name="ignore_submodels" value="$(arg ignore_submodels)" type="str" />
   </node>
 </launch>
