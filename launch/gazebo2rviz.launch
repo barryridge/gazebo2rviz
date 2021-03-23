@@ -1,6 +1,9 @@
 <launch>
   <arg name="marker_frequency" default="2" />
   <arg name="marker_collision" default="false" />
+  <arg name="marker_latch" default="false" />
+  <arg name="marker_max_messages" default="-1" />
+  <arg name="marker_lifetime_forever" default="false" />
   <arg name="worldfile" default="" />
   <arg name="ignore_submodels" default="" />
 
@@ -10,6 +13,9 @@
   <include file="$(find gazebo2rviz)/launch/gazebo2marker.launch">
     <arg name="frequency" value="$(arg marker_frequency)" />
     <arg name="collision" value="$(arg marker_collision)" />
+    <arg name="latch" value="$(arg marker_latch)" />
+    <arg name="max_messages" value="$(arg marker_max_messages)" />
+    <arg name="lifetime_forever" value="$(arg marker_lifetime_forever)" />
     <arg name="worldfile" value="$(arg worldfile)" />
     <arg name="ignore_submodels" value="$(arg ignore_submodels)" />
   </include>

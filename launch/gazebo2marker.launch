@@ -1,15 +1,22 @@
 <launch>
   <arg name="frequency" default="2" />
   <arg name="collision" default="false" />
+  <arg name="latch" default="false" />
+  <arg name="max_messages" default="-1" />
+  <arg name="lifetime_forever" default="false" />
   <arg name="worldfile" default="" />
   <arg name="ignore_submodels" default="" />
 
   <arg name="collision_arg" value="-c" if="$(arg collision)" />
   <arg name="collision_arg" value="" unless="$(arg collision)" />
   <arg name="worldfile_arg" value="$(eval '' if (worldfile == '') else ('-w ' + worldfile))" />
+  <arg name="latch_arg" value="-l" if="$(arg latch)" />
+  <arg name="latch_arg" value="" unless="$(arg latch)" />
+  <arg name="lifetime_forever_arg" value="-lf" if="$(arg lifetime_forever)" />
+  <arg name="lifetime_forever_arg" value="" unless="$(arg lifetime_forever)" />
 
 
-  <node name="gazebo2marker" pkg="gazebo2rviz" type="gazebo2marker_node.py" args="-f $(arg frequency) $(arg collision_arg) $(arg worldfile_arg)" output="screen">
+  <node name="gazebo2marker" pkg="gazebo2rviz" type="gazebo2marker_node.py" args="-f $(arg frequency) $(arg collision_arg) $(arg latch_arg) -m $(arg max_messages) $(arg lifetime_forever_arg) $(arg worldfile_arg)" output="screen">
     <param name="ignore_submodels" value="$(arg ignore_submodels)" type="str" />
   </node>
 </launch>
