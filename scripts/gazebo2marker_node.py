@@ -67,9 +67,9 @@ def on_model_states_msg(model_states_msg):
         model = load_model(model_name)
         assert(model)
       except Exception:
-        rospy.loginfo("gazebo2marker_node: Failed to load model: {}".format(modelinstance_name))
+        rospy.logwarn('gazebo2marker_node: Failed to load model: {}'.format(modelinstance_name))
         continue
-    rospy.loginfo("gazebo2marker_node: Successfully loaded model: {}".format(modelinstance_name))
+    rospy.logdebug('gazebo2marker_node: Successfully loaded model: {}'.format(modelinstance_name))
     model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
 
 
@@ -84,7 +84,7 @@ def main():
 
   global submodelsToBeIgnored
   submodelsToBeIgnored = rospy.get_param('~ignore_submodels', '').split(';')
-  rospy.loginfo('gazebo2marker_node: Ignoring submodels of: ' + str(submodelsToBeIgnored))
+  rospy.loginfo('gazebo2marker_node: Ignoring submodels: ' + str(submodelsToBeIgnored))
 
   global updatePeriod
   updatePeriod = 1. / args.freq
@@ -95,12 +95,12 @@ def main():
   if args.worldfile:
     global worldsdf
     global submodelsToBeIgnored
-    rospy.loginfo("gazebo2marker_node: Loading world model: {}".format(args.worldfile))
+    rospy.loginfo('gazebo2marker_node: Loading world model: {}'.format(args.worldfile))
     worldsdf = pysdf.SDF(file=args.worldfile, ignore_submodels=submodelsToBeIgnored)
     if worldsdf:
-      rospy.loginfo("gazebo2marker_node: Sucessfully loaded world model: {}".format(args.worldfile))
+      rospy.logdebug('gazebo2marker_node: Sucessfully loaded world model {}'.format(args.worldfile))
     else:
-      rospy.loginfo("gazebo2marker_node: Failed to load world model: {}".format(args.worldfile))
+      rospy.logwarn('gazebo2marker_node: Failed to load world model {}'.format(args.worldfile))
 
   global markerPub
   markerPub = rospy.Publisher('/visualization_marker', Marker, queue_size=10)
