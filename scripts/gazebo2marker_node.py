@@ -15,6 +15,7 @@ from gazebo2rviz import *
 
 updatePeriod = 0.5
 use_collision = False
+submodelsToBeIncluded = []
 submodelsToBeIgnored = []
 markerPub = None
 world = None
@@ -31,8 +32,6 @@ def publish_link_marker(link, full_linkname, **kwargs):
   full_linkinstancename = full_linkname
   if 'model_name' in kwargs and 'instance_name' in kwargs:
     full_linkinstancename = full_linkinstancename.replace(kwargs['model_name'], kwargs['instance_name'], 1)
-  global use_collision
-  global lifetime
   marker_msgs = link2marker_msg(link, full_linkinstancename, use_collision, lifetime)
   if len(marker_msgs) > 0:
     for marker_msg in marker_msgs:
@@ -55,7 +54,6 @@ def load_model(model_name):
   return model
 
 def on_model_states_msg(model_states_msg):
-  global max_messages
   global message_count
   if max_messages <= 0 or message_count < max_messages:
     global lastUpdateTime
@@ -67,19 +65,22 @@ def on_model_states_msg(model_states_msg):
     for (model_idx, modelinstance_name) in enumerate(model_states_msg.name):
       try:
         model_name = modelinstance_name
-        if model_name in submodelsToBeIgnored:
+        if (submodelsToBeIncluded and model_name not in submodelsToBeIncluded) or model_name in submodelsToBeIgnored:
+          rospy.logdebug("gazebo2marker_node: Model instance {} not included".format(model_name))
           continue
-        model = load_model(modelinstance_name)
+        model = load_model(model_name)
         assert(model)
       except Exception:
         try:
           model_name = pysdf.name2modelname(modelinstance_name)
-          if model_name in submodelsToBeIgnored:
+          if (submodelsToBeIncluded and model_name not in submodelsToBeIncluded) or model_name in submodelsToBeIgnored:
+            rospy.logdebug("gazebo2marker_node: Model {} not included".format(model_name))
             continue
           model = load_model(model_name)
           assert(model)
-        except Exception:
-          rospy.logwarn('gazebo2marker_node: Failed to load model: {}'.format(modelinstance_name))
+        except Exception as e:
+          rospy.logwarn('gazebo2marker_node: Failed to load model {}, '
+                        'model instance {}: {}'.format(model_name, modelinstance_name, repr(e)))
           continue
       rospy.logdebug('gazebo2marker_node: Successfully loaded model: {}'.format(modelinstance_name))
       model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
@@ -100,9 +101,19 @@ def main():
 
   rospy.init_node('gazebo2marker')
 
+  global submodelsToBeIncluded
+  submodelsToBeIncluded = rospy.get_param('~include_submodels', '').split(';')
+  if submodelsToBeIncluded == ['']:
+    submodelsToBeIncluded = []
+  else:
+    rospy.loginfo('gazebo2marker_node: Including submodels: ' + str(submodelsToBeIncluded))
+
   global submodelsToBeIgnored
   submodelsToBeIgnored = rospy.get_param('~ignore_submodels', '').split(';')
-  rospy.loginfo('gazebo2marker_node: Ignoring submodels: ' + str(submodelsToBeIgnored))
+  if submodelsToBeIgnored == ['']:
+    submodelsToBeIgnored = []
+  else:
+    rospy.loginfo('gazebo2marker_node: Ignoring submodels: ' + str(submodelsToBeIgnored))
 
   global updatePeriod
   updatePeriod = 1. / args.freq
@@ -141,7 +152,7 @@ def main():
   lastUpdateTime = rospy.get_rostime()
   modelStatesSub = rospy.Subscriber('gazebo/model_states', ModelStates, on_model_states_msg)
 
-  rospy.loginfo('Spinning')
+  rospy.loginfo('gazebo2marker_node: Spinning')
   rospy.spin()
 
 if __name__ == '__main__':

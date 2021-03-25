@@ -5,9 +5,11 @@
   <arg name="marker_max_messages" default="-1" />
   <arg name="marker_lifetime_forever" default="false" />
   <arg name="worldfile" default="" />
+  <arg name="include_submodels" default="" />
   <arg name="ignore_submodels" default="" />
 
   <include file="$(find gazebo2rviz)/launch/gazebo2tf.launch">
+    <arg name="include_submodels" value="$(arg include_submodels)" />
     <arg name="ignore_submodels" value="$(arg ignore_submodels)" />
   </include>
   <include file="$(find gazebo2rviz)/launch/gazebo2marker.launch">
@@ -17,6 +19,7 @@
     <arg name="max_messages" value="$(arg marker_max_messages)" />
     <arg name="lifetime_forever" value="$(arg marker_lifetime_forever)" />
     <arg name="worldfile" value="$(arg worldfile)" />
+    <arg name="include_submodels" value="$(arg include_submodels)" />
     <arg name="ignore_submodels" value="$(arg ignore_submodels)" />
   </include>
 </launch>
