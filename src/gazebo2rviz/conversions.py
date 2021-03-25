@@ -18,7 +18,7 @@ protoMarkerMsg.color.a = 0.0
 protoMarkerMsg.color.r = 0.0
 protoMarkerMsg.color.g = 0.0
 protoMarkerMsg.color.b = 0.0
-supported_geometry_types = ['mesh', 'cylinder', 'sphere', 'box']
+supported_geometry_types = ['mesh', 'cylinder', 'sphere', 'box', 'plane']
 
 gazebo_rospack = RosPack()
 
@@ -84,6 +84,10 @@ def link2marker_msg(link, full_linkname, use_collision = False, lifetime = rospy
     if linkpart.geometry_type == 'box':
       marker_msg.type = Marker.CUBE
       scale = (float(val) for val in linkpart.geometry_data['size'].split())
+      marker_msg.scale.x, marker_msg.scale.y, marker_msg.scale.z = scale
+    elif linkpart.geometry_type == 'plane':
+      marker_msg.type = Marker.CUBE
+      scale = (float(val) for val in linkpart.geometry_data['size'].split() + [0.001])
       marker_msg.scale.x, marker_msg.scale.y, marker_msg.scale.z = scale
     elif linkpart.geometry_type == 'sphere':
       marker_msg.type = Marker.SPHERE
