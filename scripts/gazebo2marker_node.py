@@ -97,6 +97,7 @@ def main():
   parser.add_argument('-lf', '--lifetime-forever', action='store_true', help='Set marker message duration lifetime to forever.')
   parser.add_argument('-m', '--max-messages', type=int, default=-1, help='Maximum number of messages to publish per marker (default: -1 = infinite)')
   parser.add_argument('-w', '--worldfile', type=str, help='Read models from this world file')
+  parser.add_argument('-t', '--topic', type=str, default='/visualization_marker', help='Topic to publish markers to')
   args = parser.parse_args(rospy.myargv()[1:])
 
   rospy.init_node('gazebo2marker')
@@ -145,7 +146,7 @@ def main():
       rospy.logwarn('gazebo2marker_node: Failed to load world model {}'.format(args.worldfile))
 
   global markerPub
-  markerPub = rospy.Publisher('/visualization_marker', Marker, queue_size=10, latch=latch)
+  markerPub = rospy.Publisher(args.topic, Marker, queue_size=10, latch=latch)
   rospy.sleep(rospy.Duration(0, 100 * 1000))
 
   global lastUpdateTime
