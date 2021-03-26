@@ -6,13 +6,20 @@ import argparse
 
 import rospy
 import tf
+import tf2_ros
+import tf2_geometry_msgs
 from gazebo_msgs.msg import ModelStates
 from visualization_msgs.msg import Marker
+from geometry_msgs.msg import PoseStamped
+
+import trimesh
 
 import pysdf
 from gazebo2rviz import *
 
 
+tfBuffer = None
+tfListener = None
 updatePeriod = 0.5
 use_collision = False
 submodelsToBeIncluded = []
@@ -26,9 +33,12 @@ latch = False
 max_messages = -1
 message_count = 0
 lifetime = 1
+trimeshes = []
+export_file = None
 
 
 def publish_link_marker(link, full_linkname, **kwargs):
+  global trimeshes
   full_linkinstancename = full_linkname
   if 'model_name' in kwargs and 'instance_name' in kwargs:
     full_linkinstancename = full_linkinstancename.replace(kwargs['model_name'], kwargs['instance_name'], 1)
@@ -36,6 +46,8 @@ def publish_link_marker(link, full_linkname, **kwargs):
   if len(marker_msgs) > 0:
     for marker_msg in marker_msgs:
       markerPub.publish(marker_msg)
+      if export_file:
+        trimeshes.append(marker_msg_to_trimesh(marker_msg))
 
 def load_model(model_name):
   if not model_name in model_cache:
@@ -52,6 +64,49 @@ def load_model(model_name):
   model = model_cache[model_name]
 
   return model
+
+def marker_msg_to_trimesh(marker_msg):
+  mesh = None
+
+  world_transform = tfBuffer.lookup_transform("world",
+                                              marker_msg.header.frame_id,
+                                              rospy.Time(0), #get the tf at first available time
+                                              rospy.Duration(1.0)) #wait for 1 second
+
+  marker_pose = PoseStamped(pose=marker_msg.pose, header=marker_msg.header)
+  world_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, world_transform)
+
+  if marker_msg.type == Marker.CUBE:
+    extents = (marker_msg.scale.x, marker_msg.scale.y, marker_msg.scale.z)
+    transform = tf.TransformerROS().fromTranslationRotation(
+      (world_pose.pose.position.x,
+       world_pose.pose.position.y,
+       world_pose.pose.position.z),
+      (world_pose.pose.orientation.x,
+       world_pose.pose.orientation.y,
+       world_pose.pose.orientation.z,
+       world_pose.pose.orientation.w))
+    mesh = trimesh.primitives.Box(extents=extents, transform=transform)
+  elif marker_msg.type == Marker.SPHERE:
+    radius = marker_msg.scale.x / 2.0
+    center = (world_pose.pose.position.x,
+              world_pose.pose.position.y,
+              world_pose.pose.position.z)
+    mesh = trimesh.primitives.Sphere(radius=radius, center=center)
+  elif marker_msg.type == Marker.CYLINDER:
+    radius = marker_msg.scale.x / 2.0
+    height = marker_msg.z
+    transform = tf.TransformerROS().fromTranslationRotation(
+      (world_pose.pose.position.x,
+       world_pose.pose.position.y,
+       world_pose.pose.position.z),
+      (world_pose.pose.orientation.x,
+       world_pose.pose.orientation.y,
+       world_pose.pose.orientation.z,
+       world_pose.pose.orientation.w))
+    mesh = trimesh.primitives.Cylinder(radius=radius, height=height, transform=transform)
+
+  return mesh
 
 def on_model_states_msg(model_states_msg):
   global message_count
@@ -84,6 +139,11 @@ def on_model_states_msg(model_states_msg):
           continue
       rospy.logdebug('gazebo2marker_node: Successfully loaded model: {}'.format(modelinstance_name))
       model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
+    if export_file:
+      mesh = trimesh.util.concatenate(trimeshes)
+      obj = trimesh.exchange.obj.export_obj(mesh)
+      with open(export_file, "wb") as f:
+        f.write(obj)
     message_count += 1
   else:
     return
@@ -98,9 +158,15 @@ def main():
   parser.add_argument('-m', '--max-messages', type=int, default=-1, help='Maximum number of messages to publish per marker (default: -1 = infinite)')
   parser.add_argument('-w', '--worldfile', type=str, help='Read models from this world file')
   parser.add_argument('-t', '--topic', type=str, default='/visualization_marker', help='Topic to publish markers to')
+  parser.add_argument('-e', '--export', type=str, default=None, help='Export world model to mesh file')
   args = parser.parse_args(rospy.myargv()[1:])
 
   rospy.init_node('gazebo2marker')
+
+  global tfBuffer
+  global tfListener
+  tfBuffer = tf2_ros.Buffer()
+  tfListener = tf2_ros.TransformListener(tfBuffer)
 
   global submodelsToBeIncluded
   submodelsToBeIncluded = rospy.get_param('~include_submodels', '').split(';')
@@ -144,6 +210,10 @@ def main():
       rospy.logdebug('gazebo2marker_node: Sucessfully loaded world model {}'.format(args.worldfile))
     else:
       rospy.logwarn('gazebo2marker_node: Failed to load world model {}'.format(args.worldfile))
+
+  global export_file
+  if args.export:
+    export_file = args.export
 
   global markerPub
   markerPub = rospy.Publisher(args.topic, Marker, queue_size=10, latch=latch)

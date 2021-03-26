@@ -8,6 +8,7 @@
   <arg name="include_submodels" default="" />
   <arg name="ignore_submodels" default="" />
   <arg name="topic" default="/visualization_marker" />
+  <arg name="export_file" default="" />
 
   <arg name="collision_arg" value="-c" if="$(arg collision)" />
   <arg name="collision_arg" value="" unless="$(arg collision)" />
@@ -16,9 +17,10 @@
   <arg name="latch_arg" value="" unless="$(arg latch)" />
   <arg name="lifetime_forever_arg" value="-lf" if="$(arg lifetime_forever)" />
   <arg name="lifetime_forever_arg" value="" unless="$(arg lifetime_forever)" />
+  <arg name="export_file_arg" value="$(eval '' if (export_file == '') else ('-e ' + export_file))" />
 
 
-  <node name="gazebo2marker" pkg="gazebo2rviz" type="gazebo2marker_node.py" args="-f $(arg frequency) $(arg collision_arg) $(arg latch_arg) -m $(arg max_messages) $(arg lifetime_forever_arg) $(arg worldfile_arg) -t $(arg topic)" output="screen">
+  <node name="gazebo2marker" pkg="gazebo2rviz" type="gazebo2marker_node.py" args="-f $(arg frequency) $(arg collision_arg) $(arg latch_arg) -m $(arg max_messages) $(arg lifetime_forever_arg) $(arg worldfile_arg) -t $(arg topic) $(arg export_file_arg)" output="screen">
     <param name="include_submodels" value="$(arg include_submodels)" type="str" />
     <param name="ignore_submodels" value="$(arg ignore_submodels)" type="str" />
   </node>
