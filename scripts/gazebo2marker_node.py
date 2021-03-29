@@ -2,9 +2,12 @@
 
 from __future__ import print_function
 
+import os
+import numpy as np
 import argparse
 
 import rospy
+import rospkg
 import tf
 import tf2_ros
 import tf2_geometry_msgs
@@ -18,6 +21,7 @@ import pysdf
 from gazebo2rviz import *
 
 
+rospack = rospkg.RosPack()
 tfBuffer = None
 tfListener = None
 updatePeriod = 0.5
@@ -47,7 +51,9 @@ def publish_link_marker(link, full_linkname, **kwargs):
     for marker_msg in marker_msgs:
       markerPub.publish(marker_msg)
       if export_file:
-        trimeshes.append(marker_msg_to_trimesh(marker_msg))
+        marker_mesh = marker_msg_to_trimesh(marker_msg)
+        if marker_mesh:
+          trimeshes.append(marker_mesh)
 
 def load_model(model_name):
   if not model_name in model_cache:
@@ -105,6 +111,32 @@ def marker_msg_to_trimesh(marker_msg):
        world_pose.pose.orientation.z,
        world_pose.pose.orientation.w))
     mesh = trimesh.primitives.Cylinder(radius=radius, height=height, transform=transform)
+  elif marker_msg.type == Marker.MESH_RESOURCE:
+    try:
+      mesh_path = marker_msg.mesh_resource.replace('file://', '')
+      transform = tf.TransformerROS().fromTranslationRotation(
+        (world_pose.pose.position.x,
+         world_pose.pose.position.y,
+         world_pose.pose.position.z),
+        (world_pose.pose.orientation.x,
+         world_pose.pose.orientation.y,
+         world_pose.pose.orientation.z,
+         world_pose.pose.orientation.w))
+      # Load mesh file as mesh or scene, dump to mesh list & concatenate meshes
+      # See: https://github.com/mikedh/trimesh/issues/507#issuecomment-515491388
+      mesh_or_scene = trimesh.load(mesh_path)
+      dump = mesh_or_scene.dump()
+      mesh = dump.sum()
+      # Scale mesh
+      rospy.logwarn('marker_msg.scale: {}'.format(marker_msg.scale))
+      rospy.logwarn('mesh.scale BEFORE mesh.apply_scale(): {}'.format(mesh.scale))
+      mesh.apply_scale(np.cbrt(mesh.scale) / mesh.scale)
+      rospy.logwarn('mesh.scale AFTER mesh.apply_scale(): {}'.format(mesh.scale))
+      # Transform mesh
+      mesh.apply_transform(transform)
+    except Exception as e:
+      rospy.logwarn('gazebo2marker_node: Failed to load mesh {} from marker message: {}'.format(mesh_path, repr(e)))
+      pass
 
   return mesh
 
@@ -140,10 +172,13 @@ def on_model_states_msg(model_states_msg):
       rospy.logdebug('gazebo2marker_node: Successfully loaded model: {}'.format(modelinstance_name))
       model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
     if export_file:
-      mesh = trimesh.util.concatenate(trimeshes)
-      obj = trimesh.exchange.obj.export_obj(mesh)
-      with open(export_file, "wb") as f:
-        f.write(obj)
+      try:
+        mesh = trimesh.util.concatenate(trimeshes)
+        _ = trimesh.exchange.export.export_mesh(mesh, export_file)
+        # scene = trimesh.Scene(trimeshes)
+        # _ = trimesh.exchange.export.export_scene(scene, export_file)
+      except Exception as e:
+        raise(e)
     message_count += 1
   else:
     return
