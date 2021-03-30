@@ -8,7 +8,7 @@
   <arg name="include_submodels" default="" />
   <arg name="ignore_submodels" default="" />
   <arg name="topic" default="/visualization_marker" />
-  <arg name="export_file" default="" />
+  <arg name="mesh_output_file" default="" />
 
   <include file="$(find gazebo2rviz)/launch/gazebo2tf.launch">
     <arg name="include_submodels" value="$(arg include_submodels)" />
@@ -24,6 +24,6 @@
     <arg name="include_submodels" value="$(arg include_submodels)" />
     <arg name="ignore_submodels" value="$(arg ignore_submodels)" />
     <arg name="topic" value="$(arg topic)" />
-    <arg name="export_file" value="$(arg export_file)" />
+    <arg name="mesh_output_file" value="$(arg mesh_output_file)" />
   </include>
 </launch>

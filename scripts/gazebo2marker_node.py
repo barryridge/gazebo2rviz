@@ -38,7 +38,7 @@ max_messages = -1
 message_count = 0
 lifetime = 1
 trimeshes = []
-export_file = None
+mesh_output_file = None
 
 
 def publish_link_marker(link, full_linkname, **kwargs):
@@ -50,7 +50,7 @@ def publish_link_marker(link, full_linkname, **kwargs):
   if len(marker_msgs) > 0:
     for marker_msg in marker_msgs:
       markerPub.publish(marker_msg)
-      if export_file:
+      if mesh_output_file:
         marker_mesh = marker_msg_to_trimesh(marker_msg)
         if marker_mesh:
           trimeshes.append(marker_mesh)
@@ -171,12 +171,12 @@ def on_model_states_msg(model_states_msg):
           continue
       rospy.logdebug('gazebo2marker_node: Successfully loaded model: {}'.format(modelinstance_name))
       model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
-    if export_file:
+    if mesh_output_file:
       try:
         mesh = trimesh.util.concatenate(trimeshes)
-        _ = trimesh.exchange.export.export_mesh(mesh, export_file)
+        _ = trimesh.exchange.export.export_mesh(mesh, mesh_output_file)
         # scene = trimesh.Scene(trimeshes)
-        # _ = trimesh.exchange.export.export_scene(scene, export_file)
+        # _ = trimesh.exchange.export.export_scene(scene, mesh_output_file)
       except Exception as e:
         raise(e)
     message_count += 1
@@ -190,10 +190,10 @@ def main():
   parser.add_argument('-c', '--collision', action='store_true', help='Publish collision instead of visual elements')
   parser.add_argument('-l', '--latch', action='store_true', help='Latch publisher.')
   parser.add_argument('-lf', '--lifetime-forever', action='store_true', help='Set marker message duration lifetime to forever.')
-  parser.add_argument('-m', '--max-messages', type=int, default=-1, help='Maximum number of messages to publish per marker (default: -1 = infinite)')
+  parser.add_argument('-mm', '--max-messages', type=int, default=-1, help='Maximum number of messages to publish per marker (default: -1 = infinite)')
   parser.add_argument('-w', '--worldfile', type=str, help='Read models from this world file')
   parser.add_argument('-t', '--topic', type=str, default='/visualization_marker', help='Topic to publish markers to')
-  parser.add_argument('-e', '--export', type=str, default=None, help='Export world model to mesh file')
+  parser.add_argument('-mof', '--mesh-output-file', type=str, default=None, help='Export single, unified world mesh to output file (e.g. .stl, .obj)')
   args = parser.parse_args(rospy.myargv()[1:])
 
   rospy.init_node('gazebo2marker')
@@ -246,9 +246,9 @@ def main():
     else:
       rospy.logwarn('gazebo2marker_node: Failed to load world model {}'.format(args.worldfile))
 
-  global export_file
-  if args.export:
-    export_file = args.export
+  global mesh_output_file
+  if args.mesh_output_file:
+    mesh_output_file = args.mesh_output_file
 
   global markerPub
   markerPub = rospy.Publisher(args.topic, Marker, queue_size=10, latch=latch)
