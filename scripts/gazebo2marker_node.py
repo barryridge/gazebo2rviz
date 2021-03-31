@@ -13,7 +13,10 @@ import tf2_ros
 import tf2_geometry_msgs
 from gazebo_msgs.msg import ModelStates
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
+from std_msgs.msg import Header
+from shape_msgs.msg import Mesh, MeshTriangle
+from gazebo2rviz.msg import MeshStamped
 
 import trimesh
 
@@ -29,6 +32,7 @@ use_collision = False
 submodelsToBeIncluded = []
 submodelsToBeIgnored = []
 markerPub = None
+meshPub = None
 world = None
 model_cache = {}
 lastUpdateTime = None
@@ -38,6 +42,7 @@ max_messages = -1
 message_count = 0
 lifetime = 1
 trimeshes = []
+mesh_topic = None
 mesh_output_file = None
 
 
@@ -54,6 +59,16 @@ def publish_link_marker(link, full_linkname, **kwargs):
         marker_mesh = marker_msg_to_trimesh(marker_msg)
         if marker_mesh:
           trimeshes.append(marker_mesh)
+
+def publish_mesh(mesh, frame_id='world', time=None):
+  if not time:
+    time = rospy.Time.now()
+  vertices = [Point(x=v[0], y=v[1], z=v[2]) for v in mesh.vertices]
+  triangles = [MeshTriangle(vertex_indices=t) for t in mesh.faces]
+  mesh_msg = MeshStamped(
+    header=Header(frame_id=frame_id, stamp=time),
+    mesh=Mesh(vertices=vertices, triangles=triangles))
+  meshPub.publish(mesh_msg)
 
 def load_model(model_name):
   if not model_name in model_cache:
@@ -171,14 +186,20 @@ def on_model_states_msg(model_states_msg):
           continue
       rospy.logdebug('gazebo2marker_node: Successfully loaded model: {}'.format(modelinstance_name))
       model.for_all_links(publish_link_marker, model_name=model_name, instance_name=modelinstance_name)
-    if mesh_output_file:
-      try:
-        mesh = trimesh.util.concatenate(trimeshes)
-        _ = trimesh.exchange.export.export_mesh(mesh, mesh_output_file)
-        # scene = trimesh.Scene(trimeshes)
-        # _ = trimesh.exchange.export.export_scene(scene, mesh_output_file)
-      except Exception as e:
-        raise(e)
+    if mesh_output_file or mesh_topic:
+      mesh = trimesh.util.concatenate(trimeshes)
+      # scene = trimesh.Scene(trimeshes)
+      if mesh_output_file:
+        try:
+          _ = trimesh.exchange.export.export_mesh(mesh, mesh_output_file)
+          # _ = trimesh.exchange.export.export_scene(scene, mesh_output_file)
+        except Exception as e:
+          rospy.logwarn('Failed to export single, unified world mesh to output file {}: {}'.format(mesh_output_file, repr(e)))
+      if mesh_topic:
+        try:
+          publish_mesh(mesh, time=lastUpdateTime)
+        except Exception as e:
+          rospy.logwarn('Failed to publish single, unified world mesh to topic {}: {}'.format(mesh_topic, repr(e)))
     message_count += 1
   else:
     return
@@ -194,6 +215,7 @@ def main():
   parser.add_argument('-w', '--worldfile', type=str, help='Read models from this world file')
   parser.add_argument('-t', '--topic', type=str, default='/visualization_marker', help='Topic to publish markers to')
   parser.add_argument('-mof', '--mesh-output-file', type=str, default=None, help='Export single, unified world mesh to output file (e.g. .stl, .obj)')
+  parser.add_argument('-mt', '--mesh-topic', type=str, default=None, help='Topic to publish single, unifed world mesh to')
   args = parser.parse_args(rospy.myargv()[1:])
 
   rospy.init_node('gazebo2marker')
@@ -246,13 +268,21 @@ def main():
     else:
       rospy.logwarn('gazebo2marker_node: Failed to load world model {}'.format(args.worldfile))
 
+  global markerPub
+  markerPub = rospy.Publisher(args.topic, Marker, queue_size=10, latch=latch)
+  rospy.sleep(rospy.Duration(0, 100 * 1000))
+
   global mesh_output_file
   if args.mesh_output_file:
     mesh_output_file = args.mesh_output_file
 
-  global markerPub
-  markerPub = rospy.Publisher(args.topic, Marker, queue_size=10, latch=latch)
-  rospy.sleep(rospy.Duration(0, 100 * 1000))
+  global mesh_topic
+  if args.mesh_topic:
+    mesh_topic = args.mesh_topic
+
+    global meshPub
+    meshPub = rospy.Publisher(args.mesh_topic, MeshStamped, queue_size=10, latch=latch)
+    rospy.sleep(rospy.Duration(0, 100 * 1000))
 
   global lastUpdateTime
   lastUpdateTime = rospy.get_rostime()

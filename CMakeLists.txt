@@ -4,9 +4,23 @@ project(gazebo2rviz)
 find_package(catkin REQUIRED COMPONENTS
   rospy
   pysdf
+  std_msgs
+  shape_msgs
+  message_generation
 )
 
 catkin_python_setup()
+
+add_message_files(
+  FILES
+  MeshStamped.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  shape_msgs
+)
 
 catkin_package(
 #  INCLUDE_DIRS include
@@ -15,14 +29,12 @@ catkin_package(
   #  DEPENDS python-rospkg
 )
 
-
 ###########
 ## Build ##
 ###########
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
-
 
 #############
 ## Install ##
